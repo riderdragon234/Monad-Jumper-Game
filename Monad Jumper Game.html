@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedgehog Runner Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #70c5ce;
+            font-family: 'Arial', sans-serif;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 24px;
+            color: white;
+            z-index: 10; /* Ensure the score is on top */
+        }
+        #gameCanvas {
+            position: absolute;
+            bottom: 0;
+            background-color: #70c5ce; /* Background for playing area */
+            width: 100%;
+            height: 300px; /* Increased height for better gameplay */
+            border-top: 2px solid #000;
+        }
+        .hedgehog {
+            position: absolute;
+            bottom: 20px;
+            left: 50px;
+            width: 60px;
+            height: 40px;
+            background: violet; /* Violet color for hedgehog */
+            border-radius: 20px 20px 0 0; /* Rounded top for hedgehog shape */
+            box-shadow: inset 0 0 0 10px #7a1b85; /* Inner shadow for quills */
+            transition: bottom 0.1s;
+            animation: run 0.5s steps(4) infinite;
+        }
+        @keyframes run {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-10px); } /* Simple running animation */
+        }
+        .obstacle {
+            position: absolute;
+            bottom: 20px;
+            width: 20px; /* Obstacle width */
+            height: 40px; /* Obstacle height */
+            background: red;
+            animation: move 4s linear forwards; /* Animation duration for obstacles */
+        }
+        @keyframes move {
+            from { transform: translateX(100vw); }
+            to { transform: translateX(-50px); }
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            display: none;
+            text-align: center;
+        }
+        .retry-button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .retry-button:hover {
+            background-color: #ffd700;
+        }
+        #levelUpMessage {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: yellow; /* Change color here */
+            font-size: 30px; /* Increased font size */
+            font-weight: bold; /* Bold text */
+            display: none; /* Hidden by default */
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: <span id="scoreValue">0</span></div>
+    <div id="levelUpMessage">You have been leveled up!</div>
+    <div id="gameCanvas">
+        <div class="hedgehog" id="hedgehog"></div> <!-- Hedgehog character -->
+    </div>
+    <div class="game-over" id="gameOverMessage">
+        Game Over! Your score: <span id="finalScore"></span><br>
+        <span id="thankYouMessage"></span><br>
+        <button class="retry-button" id="retryButton">Retry</button>
+    </div>
+    <script>
+        const hedgehog = document.getElementById('hedgehog');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const finalScore = document.getElementById('finalScore');
+        const thankYouMessage = document.getElementById('thankYouMessage');
+        const retryButton = document.getElementById('retryButton');
+        const scoreValue = document.getElementById('scoreValue');
+        const levelUpMessage = document.getElementById('levelUpMessage');
+        let isJumping = false;
+        let jumpCount = 0;
+        let obstacles = [];
+        let obstacleInterval;
+        let score = 0;
+        let isGameOver = false;
+        let obstacleSpeed = 2000; // Initial obstacle spawn time
+        let levelUpInterval; // Interval for increasing speed
+        let speedIncreaseInterval; // Interval for further speed increases
+        let level = 0; // To track the level
+
+        let lastTapTime = 0;
+
+        // Handle spacebar jump
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                const currentTime = new Date().getTime();
+                if (currentTime - lastTapTime < 300) {
+                    jump(); // Double tap for double jump
+                }
+                lastTapTime = currentTime;
+                if (!isJumping) {
+                    jump(); // Single jump
+                }
+            }
+        });
+
+        // Handle touchpad tap
+        document.addEventListener('mousedown', (event) => {
+            jump(); // Trigger jump on touchpad tap
+        });
+
+        // Mock transaction simulation
+        function simulateTransaction() {
+            console.log('Transaction simulated: Jump action occurred! Current score:', score);
+            // You can also update the UI here to reflect the transaction
+        }
+
+        function jump() {
+            if (!isGameOver) {
+                if (jumpCount < 2) { // Allow single and double jump
+                    isJumping = true;
+                    jumpCount++;
+                    performJump();
+                    score++; // Increment score based on successful jumps
+                    scoreValue.textContent = score; // Update score display
+                    
+                    // Simulate a transaction on jump
+                    simulateTransaction();
+                }
+            }
+        }
+
+        function performJump() {
+            let jumpHeight = 0;
+            const jumpInterval = setInterval(() => {
+                if (jumpHeight >= 150) { // Increased jump height for higher jumps
+                    clearInterval(jumpInterval);
+                    const fallInterval = setInterval(() => {
+                        jumpHeight -= 5; // Set a faster fall speed
+                        hedgehog.style.bottom = `${20 + jumpHeight}px`;
+                        if (jumpHeight <= 0) {
+                            clearInterval(fallInterval);
+                            isJumping = false;
+                            jumpCount = 0; // Reset jump count
+                        }
+                    }, 20);
+                } else {
+                    jumpHeight += 10; // Increased jump speed for a faster jump
+                    hedgehog.style.bottom = `${20 + jumpHeight}px`;
+                }
+            }, 20);
+        }
+
+        function spawnObstacle() {
+            const obstacle = document.createElement('div');
+            obstacle.className = 'obstacle';
+            gameCanvas.appendChild(obstacle);
+            obstacles.push(obstacle);
+
+            // Set obstacle removal logic
+            const obstacleDuration = 4000; // Total time before the obstacle is removed
+            setTimeout(() => {
+                obstacle.remove();
+                obstacles.shift();
+            }, obstacleDuration);
+
+            // Change background color whenever an obstacle is spawned
+            changeBackground();
+        }
+
+        function changeBackground() {
+            const colors = ['#70c5ce', '#f0e68c', '#ff69b4', '#add8e6', '#ffb6c1'];
+            gameCanvas.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]; // Change playing area background
+        }
+
+        obstacleInterval = setInterval(spawnObstacle, obstacleSpeed); // Decrease obstacle spawn distance
+
+        // Change obstacle size every 5 seconds
+        setInterval(() => {
+            document.querySelectorAll('.obstacle').forEach(obstacle => {
+                const newWidth = Math.floor(Math.random() * 40) + 20; // Random width between 20px and 60px
+                const newHeight = Math.floor(Math.random() * 40) + 40; // Random height between 40px and 80px
+                obstacle.style.width = `${newWidth}px`;
+                obstacle.style.height = `${newHeight}px`;
+            });
+        }, 5000);
+
+        // Increase obstacle speed and show level up message every 60 seconds
+        levelUpInterval = setInterval(() => {
+            level++;
+            obstacleSpeed = Math.max(500, obstacleSpeed - 500); // Increase speed, but not less than 500ms
+            clearInterval(obstacleInterval);
+            obstacleInterval = setInterval(spawnObstacle, obstacleSpeed); // Restart with new speed
+            levelUpMessage.style.display = 'block'; // Show level up message
+            setTimeout(() => {
+                levelUpMessage.style.display = 'none'; // Hide after 5 seconds
+            }, 5000);
+        }, 60000); // 60 seconds
+
+        setInterval(() => {
+            if (obstacles.length && !isJumping) {
+                const hedgehogRect = hedgehog.getBoundingClientRect();
+                const obstacleRect = obstacles[0].getBoundingClientRect();
+
+                if (hedgehogRect.x + hedgehogRect.width >= obstacleRect.x &&
+                    hedgehogRect.x <= obstacleRect.x + obstacleRect.width &&
+                    hedgehogRect.y + hedgehogRect.height >= obstacleRect.y) {
+                    isGameOver = true; // Set game over state
+                    clearInterval(obstacleInterval);
+                    obstacles.forEach(ob => {
+                        ob.style.animation = 'none'; // Stop obstacle animation
+                    });
+                    hedgehog.style.animation = 'none'; // Stop hedgehog animation
+                    finalScore.textContent = score; // Set final score based on jumps
+                    thankYouMessage.textContent = `Thanks for contributing ${score} transactions on Monad!`; // Custom message
+                    gameOverMessage.style.display = 'block'; // Display game over message
+                }
+            }
+        }, 100);
+
+        // Retry button event
+        retryButton.addEventListener('click', () => {
+            location.reload(); // Reload the page to restart the game
+        });
+    </script>
+</body>
+</html>
